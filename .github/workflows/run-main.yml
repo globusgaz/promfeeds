@@ -2,8 +2,8 @@ name: Run main.py
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 6 * * *'  # щодня о 6:00 UTC
+ schedule:
+  - cron: '0 */3 * * *'  # запуск кожні 3 години
 
 jobs:
   run-script:
