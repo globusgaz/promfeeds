@@ -1,23 +1,21 @@
 on:
+
   workflow_dispatch:
 
   schedule:
-    - cron: '0 */3 * * *'  # запуск кожні 3 години
+
+    - cron: '0 6 * * *'  # щодня о 6:00 UTC
 
 jobs:
+
   run-script:
-    runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v3
+@@ -23,4 +25,4 @@ jobs:
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: ls -la
 
       - name: Run main.py
+
+        run: python main.py
+
         run: python main.py
