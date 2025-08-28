@@ -1,7 +1,7 @@
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0,8,16 * * *'  # 3 рази на день
+    - cron: '0 * * * *'  # кожну годину
 
 jobs:
   run-script:
