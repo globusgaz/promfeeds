@@ -1,17 +1,26 @@
 import xml.etree.ElementTree as ET
 import gzip
+import os
 
 FEED_IDS = [1849, 1850, 1851, 1852]
 CHUNK_SIZE = 20000
+FEED_DIR = "feeds"
 
 def load_feed(feed_id):
-    file_path = f"feeds/{feed_id}.xml"
-    tree = ET.parse(file_path)
-    root = tree.getroot()
-    return root.find("shop").find("offers").findall("offer")
+    file_path = os.path.join(FEED_DIR, f"{feed_id}.xml")
+    if not os.path.exists(file_path):
+        print(f"⚠️ Файл не знайдено: {file_path}")
+        return []
+
+    try:
+        tree = ET.parse(file_path)
+        root = tree.getroot()
+        return root.find("shop").find("offers").findall("offer")
+    except ET.ParseError as e:
+        print(f"❌ Помилка парсингу {file_path}: {e}")
+        return []
 
 def clean_offer(offer):
-    # видаляємо зайві теги
     for tag in ["oldprice", "discount", "bonus"]:
         elem = offer.find(tag)
         if elem is not None:
@@ -20,13 +29,19 @@ def clean_offer(offer):
 
 def merge_feeds(feed_ids):
     all_offers = []
+    total_loaded = 0
+
     for feed_id in feed_ids:
-        print(f"Завантажую: {feed_id}")
+        print(f"📥 Завантажую фід: {feed_id}")
         offers = load_feed(feed_id)
-        print(f"→ Знайдено {len(offers)} товарів у фіді {feed_id}")
+        print(f"→ Знайдено: {len(offers)} товарів")
+        total_loaded += len(offers)
+
         for offer in offers:
             cleaned = clean_offer(offer)
             all_offers.append(cleaned)
+
+    print(f"\n✅ Загалом оброблено: {total_loaded} товарів із {len(feed_ids)} фідів\n")
     return all_offers
 
 def create_output_xml(offers, file_index):
@@ -38,18 +53,9 @@ def create_output_xml(offers, file_index):
         offers_tag.append(offer)
 
     tree = ET.ElementTree(root)
-
     filename = f"b2b.prom.{file_index}.xml.gz"
+
     with gzip.open(filename, "wb") as f:
         tree.write(f, encoding="utf-8", xml_declaration=True)
 
-    print(f"✅ Створено: {filename} ({len(offers)} товарів)")
-
-def split_and_save(offers, chunk_size):
-    chunks = [offers[i:i + chunk_size] for i in range(0, len(offers), chunk_size)]
-    for idx, chunk in enumerate(chunks, start=1):
-        create_output_xml(chunk, idx)
-
-if __name__ == "__main__":
-    offers = merge_feeds(FEED_IDS)
-    split_and_save(offers, CHUNK_SIZE)
+    print(f"📦 Ст
