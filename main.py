@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 import gzip
 import os
+import datetime
 
 FEED_IDS = [1849, 1850, 1851, 1852]
 CHUNK_SIZE = 20000
@@ -51,6 +52,10 @@ def create_output_xml(offers, file_index):
 
     for offer in offers:
         offers_tag.append(offer)
+
+    # Додаємо мітку часу, щоб Git бачив зміни
+    timestamp = ET.SubElement(shop, "generated_at")
+    timestamp.text = datetime.datetime.now().isoformat()
 
     tree = ET.ElementTree(root)
     filename = f"b2b.prom.{file_index}.xml.gz"
