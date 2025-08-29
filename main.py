@@ -59,3 +59,13 @@ def create_output_xml(offers, file_index):
         tree.write(f, encoding="utf-8", xml_declaration=True)
 
     print(f"📦 Створено: {filename} — {len(offers)} товарів")
+
+if __name__ == "__main__":
+    print("main.py запущено")
+
+    offers = merge_feeds(FEED_IDS)
+
+    for i in range(0, len(offers), CHUNK_SIZE):
+        chunk = offers[i:i + CHUNK_SIZE]
+        file_index = i // CHUNK_SIZE + 1
+        create_output_xml(chunk, file_index)
