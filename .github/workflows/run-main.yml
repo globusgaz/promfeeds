@@ -37,6 +37,15 @@ jobs:
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
-          git add **/*.xml.gz || echo "No files to add"
-          git commit -m "Update feeds [skip ci]" || echo "No changes to commit"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main || echo "Push failed"
+
+          echo "📁 Статус перед комітом:"
+          git status
+
+          echo "📦 Додаю файли:"
+          git add **/*.xml.gz || echo "❌ Немає файлів для додавання"
+
+          echo "📝 Коміт:"
+          git commit -m "Update feeds [skip ci]" || echo "❌ Немає змін для коміту"
+
+          echo "🚀 Пуш:"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main || echo "❌ Push failed"
