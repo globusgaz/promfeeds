@@ -1,4 +1,5 @@
 import xml.etree.ElementTree as ET
+import gzip
 
 FEED_IDS = [1849, 1850, 1851, 1852]
 CHUNK_SIZE = 20000
@@ -10,6 +11,7 @@ def load_feed(feed_id):
     return root.find("shop").find("offers").findall("offer")
 
 def clean_offer(offer):
+    # видаляємо зайві теги
     for tag in ["oldprice", "discount", "bonus"]:
         elem = offer.find(tag)
         if elem is not None:
@@ -31,11 +33,16 @@ def create_output_xml(offers, file_index):
     root = ET.Element("yml_catalog")
     shop = ET.SubElement(root, "shop")
     offers_tag = ET.SubElement(shop, "offers")
+
     for offer in offers:
         offers_tag.append(offer)
+
     tree = ET.ElementTree(root)
-    filename = f"b2b.prom.{file_index}.xml"
-    tree.write(filename, encoding="utf-8", xml_declaration=True)
+
+    filename = f"b2b.prom.{file_index}.xml.gz"
+    with gzip.open(filename, "wb") as f:
+        tree.write(f, encoding="utf-8", xml_declaration=True)
+
     print(f"✅ Створено: {filename} ({len(offers)} товарів)")
 
 def split_and_save(offers, chunk_size):
