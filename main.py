@@ -58,4 +58,4 @@ def create_output_xml(offers, file_index):
     with gzip.open(filename, "wb") as f:
         tree.write(f, encoding="utf-8", xml_declaration=True)
 
-    print(f"📦 Ст
+    print(f"📦 Створено: {filename} — {len(offers)} товарів")
