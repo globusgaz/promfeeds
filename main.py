@@ -19,7 +19,9 @@ def load_feed(feed_id):
         root = ET.fromstring(response.content)
         shop = root.find("shop")
         offers_tag = shop.find("offers") if shop is not None else None
-        return offers_tag.findall("offer") if offers_tag is not None else []
+        offers = offers_tag.findall("offer") if offers_tag is not None else []
+        print(f"→ Фід {feed_id}: знайдено {len(offers)} товарів")
+        return offers
     except Exception as e:
         print(f"❌ Помилка з фідом {feed_id}: {e}")
         return []
@@ -38,14 +40,21 @@ def merge_feeds(feed_ids):
     for feed_id in feed_ids:
         offers = load_feed(feed_id)
         for offer in offers:
-            quantity = offer.findtext("quantity", "0")
-            price = offer.findtext("price", "")
-            if int(quantity) == 0 or not price:
-                continue  # Пропустити недоступні товари
+            quantity_raw = offer.findtext("quantity", "0").strip()
+            price_raw = offer.findtext("price", "").strip()
+
+            try:
+                quantity = float(quantity_raw)
+                price = float(price_raw)
+            except ValueError:
+                continue  # Пропустити, якщо не число
+
+            if quantity <= 0 or price <= 0:
+                continue  # Пропустити недоступні або безкоштовні товари
 
             cleaned = clean_offer(offer)
             all_offers.append(cleaned)
-        print(f"→ Фід {feed_id}: додано {len(offers)} товарів")
+
     print(f"\n✅ Всього актуальних товарів: {len(all_offers)}\n")
     return all_offers
 
@@ -71,7 +80,10 @@ def create_output_xml(offers, file_index):
 # 🚀 Основний запуск
 if __name__ == "__main__":
     offers = merge_feeds(FEED_IDS)
-    for i in range(0, len(offers), CHUNK_SIZE):
-        chunk = offers[i:i + CHUNK_SIZE]
-        file_index = i // CHUNK_SIZE + 1
-        create_output_xml(chunk, file_index)
+    if not offers:
+        print("⚠️ Немає актуальних товарів. Файли не створено.")
+    else:
+        for i in range(0, len(offers), CHUNK_SIZE):
+            chunk = offers[i:i + CHUNK_SIZE]
+            file_index = i // CHUNK_SIZE + 1
+            create_output_xml(chunk, file_index)
