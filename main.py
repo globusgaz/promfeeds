@@ -2,10 +2,12 @@ import xml.etree.ElementTree as ET
 import gzip
 import datetime
 import requests
+import difflib
 
 FEED_IDS = [1849, 1850, 1851, 1852]
 CHUNK_SIZE = 20000
 BASE_URL = "https://api.dropshipping.ua/api/feeds/"
+TARGET_VENDOR_CODE = "3184"
 
 def load_feed(feed_id):
     url = f"{BASE_URL}{feed_id}.xml"
@@ -20,7 +22,13 @@ def load_feed(feed_id):
 
     try:
         root = ET.fromstring(response.content)
-        offers = root.find("shop").find("offers").findall("offer")
+        shop = root.find("shop")
+        if shop is None:
+            return []
+        offers_tag = shop.find("offers")
+        if offers_tag is None:
+            return []
+        offers = offers_tag.findall("offer")
         print(f"→ Знайдено {len(offers)} товарів у фіді {feed_id}")
         return offers
     except ET.ParseError as e:
@@ -34,18 +42,43 @@ def clean_offer(offer):
             offer.remove(elem)
     return offer
 
+def find_similar_offers(offers, target_code):
+    similar = []
+    for offer in offers:
+        vendor_code = offer.findtext("vendorCode", "")
+        name = offer.findtext("name", "")
+        if vendor_code != target_code:
+            if target_code in name or difflib.SequenceMatcher(None, vendor_code, target_code).ratio() > 0.6:
+                similar.append(offer)
+    return similar
+
 def merge_feeds(feed_ids):
     all_offers = []
-    total_loaded = 0
+    found_target = False
+    similar_to_target = []
 
     for feed_id in feed_ids:
         offers = load_feed(feed_id)
-        total_loaded += len(offers)
         for offer in offers:
             cleaned = clean_offer(offer)
+            vendor_code = cleaned.findtext("vendorCode", "")
+            if vendor_code == TARGET_VENDOR_CODE:
+                found_target = True
+                print(f"✅ Товар з кодом {TARGET_VENDOR_CODE} знайдено: {cleaned.findtext('name')}")
             all_offers.append(cleaned)
 
-    print(f"\n✅ Всього оброблено: {total_loaded} товарів\n")
+        if not found_target:
+            similar = find_similar_offers(offers, TARGET_VENDOR_CODE)
+            similar_to_target.extend(similar)
+
+    if not found_target:
+        print(f"⚠️ Товар з кодом {TARGET_VENDOR_CODE} не знайдено у фідах.")
+        if similar_to_target:
+            print(f"🔍 Знайдено {len(similar_to_target)} схожих товарів:")
+            for offer in similar_to_target[:5]:  # показати максимум 5
+                print(f"→ {offer.findtext('name')} | Код: {offer.findtext('vendorCode')}")
+
+    print(f"\n✅ Всього оброблено: {len(all_offers)} товарів\n")
     return all_offers
 
 def create_output_xml(offers, file_index):
@@ -56,7 +89,6 @@ def create_output_xml(offers, file_index):
     for offer in offers:
         offers_tag.append(offer)
 
-    # мітка часу щоб git бачив зміни
     timestamp = ET.SubElement(shop, "generated_at")
     timestamp.text = datetime.datetime.now().isoformat()
 
