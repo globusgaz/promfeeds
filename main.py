@@ -39,8 +39,8 @@ def load_feed(feed_id: int) -> Optional[ET.Element]:
     return ET.fromstring(response.content)
 
 # 📤 Перевірка та збір валідних товарів
-def collect_all_valid_items(feed_ids: List[int]) -> List[Dict[str, str]]:
-    all_items = []
+def collect_all_valid_items(feed_ids: List[int]) -> List[ET.Element]:
+    valid_offers = []
     for feed_id in feed_ids:
         logging.info(f"🚀 Обробляю фід {feed_id}")
         root = load_feed(feed_id)
@@ -59,13 +59,6 @@ def collect_all_valid_items(feed_ids: List[int]) -> List[Dict[str, str]]:
             category_id = offer.findtext("categoryId", "").strip()
             quantity = offer.findtext("quantity", "0").strip()
 
-            # Зображення: беремо перше <picture>
-            image = ""
-            picture_tags = offer.findall("picture")
-            if picture_tags:
-                image = picture_tags[0].text.strip()
-
-            # 🔍 Валідація
             if not item_id:
                 logging.warning("❌ Пропущено: немає ID")
                 continue
@@ -87,31 +80,41 @@ def collect_all_valid_items(feed_ids: List[int]) -> List[Dict[str, str]]:
                 logging.warning(f"❌ Пропущено: немає categoryId (ID: {item_id})")
                 continue
 
-            item = {
-                "id": item_id,
-                "name": name,
-                "price": price_text,
-                "quantity": quantity,
-                "categoryId": category_id,
-                "image": image
-            }
+            valid_offers.append(offer)
 
-            all_items.append(item)
-
-    logging.info(f"✅ Загальна кількість валідних товарів: {len(all_items)}")
-    return all_items
+    logging.info(f"✅ Загальна кількість валідних товарів: {len(valid_offers)}")
+    return valid_offers
 
 # 🧱 Побудова XML-фіду у форматі Prom.ua
-def build_prom_xml(offers: List[Dict[str, str]]) -> ET.ElementTree:
+def build_prom_xml(offers: List[ET.Element]) -> ET.ElementTree:
     root = ET.Element("offers")
     for offer in offers:
-        item = ET.SubElement(root, "offer")
-        ET.SubElement(item, "id").text = offer["id"]
-        ET.SubElement(item, "name").text = offer["name"]
-        ET.SubElement(item, "price").text = offer["price"]
-        ET.SubElement(item, "quantity").text = offer["quantity"]
-        ET.SubElement(item, "categoryId").text = offer["categoryId"]
-        ET.SubElement(item, "image").text = offer["image"]
+        new_offer = ET.SubElement(root, "offer", {
+            "id": offer.attrib.get("id", ""),
+            "available": offer.attrib.get("available", "true")
+        })
+
+        def copy_tag(tag_name):
+            value = offer.findtext(tag_name)
+            if value:
+                ET.SubElement(new_offer, tag_name).text = value.strip()
+
+        # Основні поля
+        for tag in ["price", "currencyId", "categoryId", "name", "vendor", "vendorCode", "description", "quantity"]:
+            copy_tag(tag)
+
+        # Зображення
+        for pic in offer.findall("picture"):
+            if pic.text:
+                ET.SubElement(new_offer, "picture").text = pic.text.strip()
+
+        # Параметри
+        for param in offer.findall("param"):
+            name = param.attrib.get("name", "").strip()
+            value = param.text.strip() if param.text else ""
+            if name and value:
+                ET.SubElement(new_offer, "param", {"name": name}).text = value
+
     return ET.ElementTree(root)
 
 # 🗜️ Збереження у .xml.gz
@@ -133,7 +136,12 @@ def update_all_outputs(feed_ids: List[int], output_files: List[str]) -> None:
 
 # 🚀 Запуск
 if __name__ == "__main__":
+    start_time = time.time()
     logging.info("Запускаю main.py...")
+
     FEED_IDS = [1849, 1850, 1851, 1852]
     OUTPUT_FILES = ["b2b.prom.1.xml.gz", "b2b.prom.2.xml.gz"]
     update_all_outputs(FEED_IDS, OUTPUT_FILES)
+
+    elapsed = time.time() - start_time
+    logging.info(f"✅ Скрипт завершено за {elapsed:.2f} секунд")
