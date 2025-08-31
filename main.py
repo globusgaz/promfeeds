@@ -1,43 +1,37 @@
 import xml.etree.ElementTree as ET
 import gzip
-import os
 import datetime
+import requests
 
 FEED_IDS = [1849, 1850, 1851, 1852]
 CHUNK_SIZE = 20000
-FEED_DIR = "feeds"
+BASE_URL = "https://api.dropshipping.ua/api/feeds/"
 
 def load_feed(feed_id):
-    file_path = os.path.join(FEED_DIR, f"{feed_id}.xml")
-    if not os.path.exists(file_path):
-        print(f"⚠️ Файл не знайдено: {file_path}")
+    url = f"{BASE_URL}{feed_id}.xml"
+    print(f"📥 Завантажую: {url}")
+
+    try:
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
+    except Exception as e:
+        print(f"❌ Помилка завантаження {url}: {e}")
         return []
 
     try:
-        tree = ET.parse(file_path)
-        root = tree.getroot()
-        return root.find("shop").find("offers").findall("offer")
+        root = ET.fromstring(response.content)
+        offers = root.find("shop").find("offers").findall("offer")
+        print(f"→ Знайдено {len(offers)} товарів у фіді {feed_id}")
+        return offers
     except ET.ParseError as e:
-        print(f"❌ Помилка парсингу {file_path}: {e}")
+        print(f"❌ Помилка парсингу {url}: {e}")
         return []
 
 def clean_offer(offer):
-    # Прибираємо непотрібні теги
     for tag in ["oldprice", "discount", "bonus"]:
         elem = offer.find(tag)
         if elem is not None:
             offer.remove(elem)
-
-    # Синхронізуємо наявність
-    if "available" in offer.attrib:
-        if offer.attrib["available"].lower() in ["true", "1", "yes"]:
-            offer.set("available", "true")
-        else:
-            offer.set("available", "false")
-    else:
-        # Якщо немає атрибуту — вважаємо, що товар доступний
-        offer.set("available", "true")
-
     return offer
 
 def merge_feeds(feed_ids):
@@ -45,16 +39,13 @@ def merge_feeds(feed_ids):
     total_loaded = 0
 
     for feed_id in feed_ids:
-        print(f"📥 Завантажую фід: {feed_id}")
         offers = load_feed(feed_id)
-        print(f"→ Знайдено: {len(offers)} товарів")
         total_loaded += len(offers)
-
         for offer in offers:
             cleaned = clean_offer(offer)
             all_offers.append(cleaned)
 
-    print(f"\n✅ Загалом оброблено: {total_loaded} товарів із {len(feed_ids)} фідів\n")
+    print(f"\n✅ Всього оброблено: {total_loaded} товарів\n")
     return all_offers
 
 def create_output_xml(offers, file_index):
@@ -65,7 +56,7 @@ def create_output_xml(offers, file_index):
     for offer in offers:
         offers_tag.append(offer)
 
-    # Додаємо мітку часу, щоб Git бачив зміни
+    # мітка часу щоб git бачив зміни
     timestamp = ET.SubElement(shop, "generated_at")
     timestamp.text = datetime.datetime.now().isoformat()
 
@@ -78,8 +69,6 @@ def create_output_xml(offers, file_index):
     print(f"📦 Створено: {filename} — {len(offers)} товарів")
 
 if __name__ == "__main__":
-    print("main.py запущено")
-
     offers = merge_feeds(FEED_IDS)
 
     for i in range(0, len(offers), CHUNK_SIZE):
