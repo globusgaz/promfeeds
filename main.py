@@ -1,10 +1,8 @@
 import os
 import sys
 import time
-import json
 import gzip
 import logging
-import datetime
 import requests
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Optional
@@ -53,33 +51,50 @@ def collect_all_valid_items(feed_ids: List[int]) -> List[Dict[str, str]]:
         logging.info(f"→ Знайдено {len(offers)} товарів у фіді {feed_id}")
 
         for offer in offers:
-            item = {
-                "id": offer.findtext("id", "").strip(),
-                "name": offer.findtext("name", "").strip(),
-                "price": offer.findtext("price", "").strip(),
-                "quantity": offer.findtext("quantity", "0").strip(),
-                "categoryId": offer.findtext("categoryId", "").strip(),
-                "image": offer.findtext("image", "").strip()
-            }
+            item_id = offer.attrib.get("id", "").strip()
+            availability = offer.attrib.get("available", "true").strip()
+
+            name = offer.findtext("name", "").strip()
+            price_text = offer.findtext("price", "").strip()
+            category_id = offer.findtext("categoryId", "").strip()
+            quantity = offer.findtext("quantity", "0").strip()
+
+            # Зображення: беремо перше <picture>
+            image = ""
+            picture_tags = offer.findall("picture")
+            if picture_tags:
+                image = picture_tags[0].text.strip()
 
             # 🔍 Валідація
-            if not item["id"]:
+            if not item_id:
                 logging.warning("❌ Пропущено: немає ID")
                 continue
-            if not item["name"]:
-                logging.warning(f"❌ Пропущено: немає назви (ID: {item['id']})")
+            if availability != "true":
+                logging.warning(f"❌ Пропущено: недоступний товар (ID: {item_id})")
+                continue
+            if not name:
+                logging.warning(f"❌ Пропущено: немає назви (ID: {item_id})")
                 continue
             try:
-                price = float(item["price"])
+                price = float(price_text)
                 if price < 0.01 or price > 99999999999999:
-                    logging.warning(f"❌ Пропущено: некоректна ціна {price} (ID: {item['id']})")
+                    logging.warning(f"❌ Пропущено: некоректна ціна {price} (ID: {item_id})")
                     continue
             except ValueError:
-                logging.warning(f"❌ Пропущено: ціна не число '{item['price']}' (ID: {item['id']})")
+                logging.warning(f"❌ Пропущено: ціна не число '{price_text}' (ID: {item_id})")
                 continue
-            if not item["categoryId"]:
-                logging.warning(f"❌ Пропущено: немає categoryId (ID: {item['id']})")
+            if not category_id:
+                logging.warning(f"❌ Пропущено: немає categoryId (ID: {item_id})")
                 continue
+
+            item = {
+                "id": item_id,
+                "name": name,
+                "price": price_text,
+                "quantity": quantity,
+                "categoryId": category_id,
+                "image": image
+            }
 
             all_items.append(item)
 
@@ -108,6 +123,9 @@ def save_gzipped_xml(tree: ET.ElementTree, filename: str) -> None:
 # 📤 Оновлення вихідних файлів
 def update_all_outputs(feed_ids: List[int], output_files: List[str]) -> None:
     items = collect_all_valid_items(feed_ids)
+    if not items:
+        logging.warning("⚠️ Немає валідних товарів для збереження")
+        return
     tree = build_prom_xml(items)
     for filename in output_files:
         save_gzipped_xml(tree, filename)
