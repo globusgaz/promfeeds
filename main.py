@@ -36,6 +36,9 @@ def load_feed(feed_id: int) -> Optional[ET.Element]:
 # 📤 Збір валідних товарів
 def collect_valid_offers(feed_ids: List[int]) -> List[ET.Element]:
     all_valid = []
+    seen_vendor_codes = set()
+    duplicates = 0
+
     for feed_id in feed_ids:
         root = load_feed(feed_id)
         if root is None:
@@ -46,15 +49,25 @@ def collect_valid_offers(feed_ids: List[int]) -> List[ET.Element]:
         skipped = 0
 
         for offer in offers:
-            if offer.attrib.get("available", "false") != "true":
+            vendor_code = offer.findtext("vendorCode")
+
+            # унікальність по vendorCode
+            if vendor_code and vendor_code in seen_vendor_codes:
+                duplicates += 1
+                continue
+            if vendor_code:
+                seen_vendor_codes.add(vendor_code)
+
+            # пропускаємо лише ті товари, у яких немає обов'язкових даних
+            if not offer.findtext("price") or not offer.findtext("name") or not offer.findtext("categoryId"):
                 skipped += 1
                 continue
-            if not offer.findtext("price") or not offer.findtext("name"):
-                skipped += 1
-                continue
+
             all_valid.append(offer)
 
-        logging.info(f"📊 Фід {feed_id}: знайдено {total}, валідних {len(offers)-skipped}, пропущено {skipped}")
+        logging.info(f"📊 Фід {feed_id}: знайдено {total}, додано {len(offers)-skipped}, пропущено {skipped}")
+
+    logging.info(f"🔁 Видалено дублікатів: {duplicates}")
     return all_valid
 
 # 🧱 Побудова XML у форматі Prom.ua
@@ -63,7 +76,7 @@ def build_prom_xml(offers: List[ET.Element]) -> ET.ElementTree:
     for offer in offers:
         new_offer = ET.SubElement(root, "offer", {
             "id": offer.attrib.get("id", ""),
-            "available": "true",
+            "available": offer.attrib.get("available", "false"),
             "selling_type": offer.attrib.get("selling_type", "r")
         })
 
@@ -101,8 +114,13 @@ def update_outputs(feed_ids: List[int], output_files: List[str]):
         logging.warning("⚠️ Немає валідних товарів")
         return
 
-    half = len(offers) // 2
-    chunks = [offers[:half], offers[half:]]
+    # 🔀 ділимо на файли по рівній кількості
+    chunk_size = len(offers) // len(output_files)
+    chunks = [offers[i*chunk_size : (i+1)*chunk_size] for i in range(len(output_files))]
+
+    # додаємо залишок у останній файл
+    if len(offers) % len(output_files) != 0:
+        chunks[-1].extend(offers[len(output_files)*chunk_size:])
 
     for i, filename in enumerate(output_files):
         tree = build_prom_xml(chunks[i])
