@@ -72,14 +72,16 @@ def create_output_xml(offers, file_index):
     timestamp = ET.SubElement(shop, "generated_at")
     timestamp.text = datetime.datetime.now().isoformat()
 
-    tree = ET.ElementTree(root)
     filename = f"{OUTPUT_PREFIX}.{file_index}.xml.gz"
 
     # 🧹 Видалити старий файл, якщо існує
     if os.path.exists(filename):
         os.remove(filename)
 
-    tree.write(gzip.open(filename, "wb"), encoding="utf-8", xml_declaration=True)
+    with gzip.open(filename, "wb") as f:
+        tree = ET.ElementTree(root)
+        tree.write(f, encoding="utf-8", xml_declaration=True)
+
     print(f"📦 Створено: {filename} — {len(offers)} товарів")
 
 # 🚀 Основний запуск
@@ -92,3 +94,9 @@ if __name__ == "__main__":
             chunk = offers[i:i + CHUNK_SIZE]
             file_index = i // CHUNK_SIZE + 1
             create_output_xml(chunk, file_index)
+
+    # 📁 Діагностика: показати створені файли
+    print("\n📁 Список файлів після запуску:")
+    for f in os.listdir():
+        if f.startswith("b2b.prom") and f.endswith(".xml.gz"):
+            print("→", f)
