@@ -18,13 +18,15 @@ logging.basicConfig(
 
 def load_feed(feed_id):
     url = f"https://api.dropshipping.ua/api/feeds/{feed_id}.xml"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; CopilotBot/1.0)"
+    }
     logging.info(f"📥 Завантажую: {url}")
-    response = requests.get(url)
+    response = requests.get(url, headers=headers)
     if response.status_code != 200:
         logging.error(f"❌ Помилка завантаження: {response.status_code}")
         return None
 
-    # Зберігаємо фід для аналізу
     filename = f"raw_feed_{feed_id}.xml"
     with open(filename, "wb") as f:
         f.write(response.content)
@@ -33,14 +35,12 @@ def load_feed(feed_id):
     return ET.fromstring(response.content)
 
 def find_quantity(offer):
-    # 1. Прямі теги
     for elem in offer:
         tag = elem.tag.lower()
         if "quantity" in tag or "stock" in tag or "available" in tag or "presence" in tag:
             if elem.text and elem.text.strip().replace('.', '', 1).isdigit():
                 return elem.text.strip()
 
-    # 2. Параметри типу <param name="Кількість">5</param>
     for param in offer.findall("param"):
         name_attr = param.attrib.get("name", "").lower()
         if "кількість" in name_attr or "наличие" in name_attr or "stock" in name_attr:
