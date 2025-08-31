@@ -22,32 +22,21 @@ def load_feed(feed_id):
         return []
 
 def clean_offer(offer):
-    # Видаляємо непотрібні теги
+    # Прибираємо непотрібні теги
     for tag in ["oldprice", "discount", "bonus"]:
         elem = offer.find(tag)
         if elem is not None:
             offer.remove(elem)
 
-    # Перевіряємо наявність кількості
-    quantity = offer.find("quantity")
-    stock = offer.find("stock")
-
-    available = offer.find("available")
-    if available is None:
-        available = ET.SubElement(offer, "available")
-
-    # Логіка визначення доступності
-    try:
-        if quantity is not None:
-            q_val = int(quantity.text.strip())
-            available.text = "true" if q_val > 0 else "false"
-        elif stock is not None:
-            s_val = int(stock.text.strip())
-            available.text = "true" if s_val > 0 else "false"
+    # Синхронізуємо наявність
+    if "available" in offer.attrib:
+        if offer.attrib["available"].lower() in ["true", "1", "yes"]:
+            offer.set("available", "true")
         else:
-            available.text = "true"  # якщо нічого немає — вважаємо що є
-    except Exception:
-        available.text = "true"  # fallback
+            offer.set("available", "false")
+    else:
+        # Якщо немає атрибуту — вважаємо, що товар доступний
+        offer.set("available", "true")
 
     return offer
 
