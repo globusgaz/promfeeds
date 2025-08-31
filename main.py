@@ -1,109 +1,75 @@
-import xml.etree.ElementTree as ET
-import gzip
 import os
+import time
+import logging
 import datetime
+import json
 import requests
+import xml.etree.ElementTree as ET
 
-# Налаштування
-FEED_IDS = [1849, 1850, 1851, 1852]
-CHUNK_SIZE = 20000
-FEED_DIR = "feeds"
-BASE_URL = "https://api.dropshipping.ua/api/feeds"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0"
-}
+# Налаштування логування
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("main.log"),
+        logging.StreamHandler()
+    ]
+)
 
-# Завантаження одного фіду
 def load_feed(feed_id):
-    url = f"{BASE_URL}/{feed_id}.xml"
-    try:
-        print(f"📥 Завантажую: {url}")
-        response = requests.get(url, headers=HEADERS, timeout=60)
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-        offers = root.find("shop").find("offers").findall("offer")
-        print(f"→ {len(offers)} товарів у фіді {feed_id}")
-        return offers
-    except Exception as e:
-        print(f"❌ Помилка завантаження {url}: {e}")
-        return []
+    url = f"https://api.dropshipping.ua/api/feeds/{feed_id}.xml"
+    logging.info(f"📥 Завантажую: {url}")
+    response = requests.get(url)
+    if response.status_code != 200:
+        logging.error(f"❌ Помилка завантаження: {response.status_code}")
+        return None
 
-# Очищення зайвих тегів
-def clean_offer(offer):
-    for tag in ["oldprice", "discount", "bonus"]:
-        elem = offer.find(tag)
-        if elem is not None:
-            offer.remove(elem)
-    return offer
+    # Зберігаємо фід для аналізу
+    filename = f"raw_feed_{feed_id}.xml"
+    with open(filename, "wb") as f:
+        f.write(response.content)
+    logging.info(f"💾 Фід збережено у файл: {filename}")
 
-# Пошук кількості за будь-яким тегом
+    return ET.fromstring(response.content)
+
 def find_quantity(offer):
+    # 1. Прямі теги
     for elem in offer:
         tag = elem.tag.lower()
         if "quantity" in tag or "stock" in tag or "available" in tag or "presence" in tag:
             if elem.text and elem.text.strip().replace('.', '', 1).isdigit():
                 return elem.text.strip()
+
+    # 2. Параметри типу <param name="Кількість">5</param>
+    for param in offer.findall("param"):
+        name_attr = param.attrib.get("name", "").lower()
+        if "кількість" in name_attr or "наличие" in name_attr or "stock" in name_attr:
+            if param.text and param.text.strip().replace('.', '', 1).isdigit():
+                return param.text.strip()
+
     return None
 
-# Перевірка актуальності товару
-def is_valid_offer(offer):
-    price_tag = offer.find("price")
-    quantity_text = find_quantity(offer)
+def find_price(offer):
+    for elem in offer:
+        tag = elem.tag.lower()
+        if "price" in tag:
+            return elem.text.strip()
+    return None
 
-    price_text = price_tag.text if price_tag is not None else None
+def process_feed(feed_id):
+    logging.info("🚀 Скрипт стартував...")
+    root = load_feed(feed_id)
+    if root is None:
+        return
 
-    print(f"🔎 Перевірка товару: ціна = {price_text}, кількість = {quantity_text}")
-
-    try:
-        price = float(price_text)
-        quantity = int(float(quantity_text))
-        return price > 0 and quantity > 0
-    except:
-        return False
-
-# Об'єднання фідів
-def merge_feeds(feed_ids):
-    all_offers = []
-    for feed_id in feed_ids:
-        offers = load_feed(feed_id)
-        for offer in offers:
-            if is_valid_offer(offer):
-                cleaned = clean_offer(offer)
-                all_offers.append(cleaned)
-    print(f"\n✅ Всього зібрано: {len(all_offers)} актуальних товарів")
-    return all_offers
-
-# Створення одного XML-файлу
-def create_output_xml(offers, file_index):
-    root = ET.Element("yml_catalog")
-    shop = ET.SubElement(root, "shop")
-    offers_tag = ET.SubElement(shop, "offers")
+    offers = root.findall(".//offer")
+    logging.info(f"→ Знайдено {len(offers)} товарів у фіді {feed_id}")
 
     for offer in offers:
-        offers_tag.append(offer)
+        price = find_price(offer)
+        quantity = find_quantity(offer)
+        logging.info(f"🔎 Товар: ціна = {price}, кількість = {quantity}")
 
-    timestamp = ET.SubElement(shop, "generated_at")
-    timestamp.text = datetime.datetime.now().isoformat()
-
-    os.makedirs(FEED_DIR, exist_ok=True)
-    filename = os.path.join(FEED_DIR, f"b2b.prom.{file_index}.xml.gz")
-
-    with gzip.open(filename, "wb") as f:
-        tree = ET.ElementTree(root)
-        tree.write(f, encoding="utf-8", xml_declaration=True)
-
-    print(f"📦 Створено: {filename} ({len(offers)} товарів)")
-
-# Розбиття на частини
-def split_and_save(offers, chunk_size):
-    for i in range(0, len(offers), chunk_size):
-        chunk = offers[i:i + chunk_size]
-        file_index = i // chunk_size + 1
-        create_output_xml(chunk, file_index)
-
-# Запуск
 if __name__ == "__main__":
-    print("🚀 Скрипт стартував...")
-    offers = merge_feeds(FEED_IDS)
-    split_and_save(offers, CHUNK_SIZE)
-    print("✅ Робота завершена")
+    logging.info("Запускаю main.py...")
+    process_feed(1849)
