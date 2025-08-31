@@ -4,16 +4,21 @@ import os
 import datetime
 import requests
 
+# Налаштування
 FEED_IDS = [1849, 1850, 1851, 1852]
 CHUNK_SIZE = 20000
 FEED_DIR = "feeds"
 BASE_URL = "https://api.dropshipping.ua/api/feeds"
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
 
+# Завантаження одного фіду
 def load_feed(feed_id):
     url = f"{BASE_URL}/{feed_id}.xml"
     try:
         print(f"📥 Завантажую: {url}")
-        response = requests.get(url, timeout=60)
+        response = requests.get(url, headers=HEADERS, timeout=60)
         response.raise_for_status()
         root = ET.fromstring(response.content)
         offers = root.find("shop").find("offers").findall("offer")
@@ -23,6 +28,7 @@ def load_feed(feed_id):
         print(f"❌ Помилка завантаження {url}: {e}")
         return []
 
+# Очищення зайвих тегів
 def clean_offer(offer):
     for tag in ["oldprice", "discount", "bonus"]:
         elem = offer.find(tag)
@@ -30,6 +36,7 @@ def clean_offer(offer):
             offer.remove(elem)
     return offer
 
+# Перевірка актуальності товару
 def is_valid_offer(offer):
     try:
         price = float(offer.find("price").text)
@@ -38,6 +45,7 @@ def is_valid_offer(offer):
     except:
         return False
 
+# Об'єднання фідів
 def merge_feeds(feed_ids):
     all_offers = []
     for feed_id in feed_ids:
@@ -49,6 +57,7 @@ def merge_feeds(feed_ids):
     print(f"\n✅ Всього зібрано: {len(all_offers)} актуальних товарів")
     return all_offers
 
+# Створення одного XML-файлу
 def create_output_xml(offers, file_index):
     root = ET.Element("yml_catalog")
     shop = ET.SubElement(root, "shop")
@@ -57,7 +66,7 @@ def create_output_xml(offers, file_index):
     for offer in offers:
         offers_tag.append(offer)
 
-    # додаємо мітку часу
+    # Додаємо мітку часу
     timestamp = ET.SubElement(shop, "generated_at")
     timestamp.text = datetime.datetime.now().isoformat()
 
@@ -70,12 +79,14 @@ def create_output_xml(offers, file_index):
 
     print(f"📦 Створено: {filename} ({len(offers)} товарів)")
 
+# Розбиття на частини
 def split_and_save(offers, chunk_size):
     for i in range(0, len(offers), chunk_size):
         chunk = offers[i:i + chunk_size]
         file_index = i // chunk_size + 1
         create_output_xml(chunk, file_index)
 
+# Запуск
 if __name__ == "__main__":
     print("🚀 Скрипт стартував...")
     offers = merge_feeds(FEED_IDS)
