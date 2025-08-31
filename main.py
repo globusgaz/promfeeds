@@ -14,8 +14,9 @@ OUTPUT_PREFIX = "b2b.prom"
 def load_feed(feed_id):
     url = f"{BASE_URL}{feed_id}.xml"
     print(f"📥 Завантажую: {url}")
+    headers = {"User-Agent": "Mozilla/5.0"}  # 👈 Додано заголовок
     try:
-        response = requests.get(url, timeout=60)
+        response = requests.get(url, headers=headers, timeout=60)
         response.raise_for_status()
         root = ET.fromstring(response.content)
         shop = root.find("shop")
@@ -74,7 +75,6 @@ def create_output_xml(offers, file_index):
 
     filename = f"{OUTPUT_PREFIX}.{file_index}.xml.gz"
 
-    # 🧹 Видалити старий файл, якщо існує
     if os.path.exists(filename):
         os.remove(filename)
 
@@ -95,7 +95,6 @@ if __name__ == "__main__":
             file_index = i // CHUNK_SIZE + 1
             create_output_xml(chunk, file_index)
 
-    # 📁 Діагностика: показати створені файли
     print("\n📁 Список файлів після запуску:")
     for f in os.listdir():
         if f.startswith("b2b.prom") and f.endswith(".xml.gz"):
