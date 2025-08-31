@@ -24,6 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install requests
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run main.py
@@ -42,7 +43,7 @@ jobs:
           git status
 
           echo "📦 Додаю файли:"
-          git add b2b.prom.1.xml.gz b2b.prom.2.xml.gz || echo "❌ Немає файлів для додавання"
+          git add b2b.prom.*.xml.gz || echo "❌ Немає файлів для додавання"
 
           echo "📝 Коміт:"
           git commit -m "Update feeds [skip ci]" || echo "❌ Немає змін для коміту"
