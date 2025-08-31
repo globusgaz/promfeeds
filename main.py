@@ -14,7 +14,7 @@ OUTPUT_PREFIX = "b2b.prom"
 def load_feed(feed_id):
     url = f"{BASE_URL}{feed_id}.xml"
     print(f"📥 Завантажую: {url}")
-    headers = {"User-Agent": "Mozilla/5.0"}  # 👈 Додано заголовок
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
         response = requests.get(url, headers=headers, timeout=60)
         response.raise_for_status()
@@ -45,14 +45,18 @@ def merge_feeds(feed_ids):
             quantity_raw = offer.findtext("quantity", "0").strip()
             price_raw = offer.findtext("price", "").strip()
 
+            # 🧪 Діагностика
+            print(f"🧪 Товар: quantity='{quantity_raw}', price='{price_raw}'")
+
             try:
                 quantity = float(quantity_raw)
                 price = float(price_raw)
             except ValueError:
-                print(f"⚠️ Пропущено товар: quantity={quantity_raw}, price={price_raw}")
+                print(f"⚠️ Пропущено: некоректні значення")
                 continue
 
             if quantity <= 0 or price <= 0:
+                print(f"⚠️ Пропущено: quantity={quantity}, price={price}")
                 continue
 
             cleaned = clean_offer(offer)
