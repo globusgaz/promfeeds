@@ -2,20 +2,27 @@ import requests
 import xml.etree.ElementTree as ET
 import csv
 
-# 🌐 КРОК 1: Завантаження XML-фіду
+# 🌐 КРОК 1: URL фіду
 FEED_URL = "https://api.dropshipping.ua/api/feeds/1849.xml"
-response = requests.get(FEED_URL)
+
+# 🛡️ КРОК 2: Заголовки для обходу 403
+headers = {
+    "User-Agent": "Mozilla/5.0"
+}
+
+# 📥 КРОК 3: Завантаження фіду
+response = requests.get(FEED_URL, headers=headers)
 response.encoding = 'utf-8'
 
 if response.status_code != 200:
     raise Exception(f"Не вдалося завантажити фід: {response.status_code}")
 
-# 🧪 КРОК 2: Парсинг XML
+# 🧪 КРОК 4: Парсинг XML
 root = ET.fromstring(response.text)
 items = root.findall(".//item")
 print(f"→ Фід 1849: знайдено {len(items)} товарів")
 
-# 🧹 КРОК 3: Обробка товарів
+# 🧹 КРОК 5: Обробка товарів
 products = []
 
 for item in items:
@@ -36,7 +43,7 @@ for item in items:
         "quantity": quantity
     })
 
-# 📁 КРОК 4: Збереження у CSV
+# 📁 КРОК 6: Збереження у CSV
 with open("products.csv", "w", newline="", encoding="utf-8") as f:
     writer = csv.DictWriter(f, fieldnames=["name", "price", "quantity"])
     writer.writeheader()
