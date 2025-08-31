@@ -36,12 +36,13 @@ def clean_offer(offer):
             offer.remove(elem)
     return offer
 
-# Пошук кількості за альтернативними тегами
+# Пошук кількості за будь-яким тегом
 def find_quantity(offer):
-    for tag in ["quantity", "stock", "available", "presence", "quantity_in_stock"]:
-        elem = offer.find(tag)
-        if elem is not None and elem.text:
-            return elem.text
+    for elem in offer:
+        tag = elem.tag.lower()
+        if "quantity" in tag or "stock" in tag or "available" in tag or "presence" in tag:
+            if elem.text and elem.text.strip().replace('.', '', 1).isdigit():
+                return elem.text.strip()
     return None
 
 # Перевірка актуальності товару
@@ -55,7 +56,7 @@ def is_valid_offer(offer):
 
     try:
         price = float(price_text)
-        quantity = int(float(quantity_text))  # іноді кількість може бути десятковою
+        quantity = int(float(quantity_text))
         return price > 0 and quantity > 0
     except:
         return False
