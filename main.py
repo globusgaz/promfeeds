@@ -68,32 +68,41 @@ def save_gzipped_xml(tree: ET.ElementTree, filename: str) -> None:
     with gzip.open(filename, "wb") as f:
         f.write(xml_bytes)
 
-# 🔁 Основна логіка
-def process_feed(feed_id: int, output_filename: str) -> None:
-    logging.info("🚀 Скрипт стартував...")
-    root = load_feed(feed_id)
-    if root is None:
-        return
+# 🔁 Збір товарів з кількох фідів
+def collect_all_available_items(feed_ids: List[int]) -> List[Dict[str, str]]:
+    all_items = []
+    for feed_id in feed_ids:
+        logging.info(f"🚀 Обробляю фід {feed_id}")
+        root = load_feed(feed_id)
+        if root is None:
+            continue
 
-    offers = root.findall(".//offer")
-    logging.info(f"→ Знайдено {len(offers)} товарів у фіді {feed_id}")
+        offers = root.findall(".//offer")
+        logging.info(f"→ Знайдено {len(offers)} товарів у фіді {feed_id}")
 
-    available_items = []
-    for offer in offers:
-        price = find_price(offer)
-        availability = find_availability(offer)
-        if availability == "true":
-            available_items.append({
-                "price": price,
-                "available": availability
-            })
+        for offer in offers:
+            price = find_price(offer)
+            availability = find_availability(offer)
+            if availability == "true":
+                all_items.append({
+                    "price": price,
+                    "available": availability
+                })
 
-    tree = build_xml(available_items)
-    save_gzipped_xml(tree, output_filename)
-    logging.info(f"📦 Файл оновлено: {output_filename}")
+    logging.info(f"✅ Загальна кількість доступних товарів: {len(all_items)}")
+    return all_items
+
+# 📤 Оновлення вихідних файлів
+def update_all_outputs(feed_ids: List[int], output_files: List[str]) -> None:
+    items = collect_all_available_items(feed_ids)
+    tree = build_xml(items)
+    for filename in output_files:
+        save_gzipped_xml(tree, filename)
+        logging.info(f"📦 Файл оновлено: {filename}")
 
 # 🚀 Запуск
 if __name__ == "__main__":
     logging.info("Запускаю main.py...")
-    process_feed(1849, "b2b.prom.1.xml.gz")
-    process_feed(1849, "b2b.prom.2.xml.gz")
+    FEED_IDS = [1849, 1850, 1851, 1852]
+    OUTPUT_FILES = ["b2b.prom.1.xml.gz", "b2b.prom.2.xml.gz"]
+    update_all_outputs(FEED_IDS, OUTPUT_FILES)
