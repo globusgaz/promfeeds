@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 import gzip
 import datetime
 import requests
+import os
 
 # 🔧 Налаштування
 FEED_IDS = [1849, 1850, 1851, 1852]
@@ -47,10 +48,11 @@ def merge_feeds(feed_ids):
                 quantity = float(quantity_raw)
                 price = float(price_raw)
             except ValueError:
-                continue  # Пропустити, якщо не число
+                print(f"⚠️ Пропущено товар: quantity={quantity_raw}, price={price_raw}")
+                continue
 
             if quantity <= 0 or price <= 0:
-                continue  # Пропустити недоступні або безкоштовні товари
+                continue
 
             cleaned = clean_offer(offer)
             all_offers.append(cleaned)
@@ -72,9 +74,12 @@ def create_output_xml(offers, file_index):
 
     tree = ET.ElementTree(root)
     filename = f"{OUTPUT_PREFIX}.{file_index}.xml.gz"
-    with gzip.open(filename, "wb") as f:
-        tree.write(f, encoding="utf-8", xml_declaration=True)
 
+    # 🧹 Видалити старий файл, якщо існує
+    if os.path.exists(filename):
+        os.remove(filename)
+
+    tree.write(gzip.open(filename, "wb"), encoding="utf-8", xml_declaration=True)
     print(f"📦 Створено: {filename} — {len(offers)} товарів")
 
 # 🚀 Основний запуск
